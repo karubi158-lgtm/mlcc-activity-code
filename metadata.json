@@ -1,0 +1,6 @@
+{
+  "name": "Digit AIpro - Cloud ML & TensorFlow Suite",
+  "description": "End-to-end digit recognition platform covering Google Cloud ML APIs, Firebase, Keras CNN/RNN models, Hyperparameter Tuning, and Cloud Shell deployment.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,128 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "End-user account profile and preferred translation language.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID matching document ID."
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "User display name."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 200,
+          "description": "User email address (private to owner)."
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Optional profile avatar URL."
+        },
+        "preferredLanguage": {
+          "type": "string",
+          "maxLength": 16,
+          "description": "ISO code for default target translation language."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last update timestamp."
+        }
+      },
+      "required": ["uid", "displayName", "email", "preferredLanguage", "createdAt", "updatedAt"]
+    },
+    "ScanRecord": {
+      "title": "ScanRecord",
+      "description": "A handwritten or photographed scan recognized via Local CNN or Cloud Vision Fallback.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner Firebase Auth UID."
+        },
+        "detectedText": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "description": "Recognized digits, letters, words, or mathematical expression."
+        },
+        "contentType": {
+          "type": "string",
+          "enum": ["digit", "letter", "number", "word", "math_expression", "sentence", "document"],
+          "description": "Detected content classification."
+        },
+        "confidence": {
+          "type": "number",
+          "description": "Recognition confidence score between 0.0 and 1.0."
+        },
+        "pipeline": {
+          "type": "string",
+          "enum": ["CUSTOM_TENSORFLOW_CNN", "CLOUD_VISION_FALLBACK", "GOOGLE_CLOUD_VISION_REST_API"],
+          "description": "Model route that produced the final prediction."
+        },
+        "mathEvaluated": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Optional computed result when detectedText is a math expression."
+        },
+        "translatedText": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "Optional Cloud Translation output."
+        },
+        "targetLanguage": {
+          "type": "string",
+          "maxLength": 16,
+          "description": "Optional ISO language code for translatedText."
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Optional user note or title for this scan."
+        },
+        "thumbnailDataUrl": {
+          "type": "string",
+          "maxLength": 60000,
+          "description": "Compressed small preview thumbnail data URL."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["ownerId", "detectedText", "contentType", "confidence", "pipeline", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profile documents owned strictly by the authenticated user."
+    },
+    "/users/{userId}/scans/{scanId}": {
+      "schema": { "$ref": "#/entities/ScanRecord" },
+      "description": "User's saved handwriting and Cloud Vision OCR scan records."
+    }
+  }
+}

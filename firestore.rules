@@ -1,0 +1,124 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidUser(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'preferredLanguage', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'photoURL', 'preferredLanguage', 'createdAt', 'updatedAt'])
+        && data.uid is string
+        && data.uid.size() <= 128
+        && data.uid == request.auth.uid
+        && data.uid == userId
+        && data.displayName is string
+        && data.displayName.size() >= 1
+        && data.displayName.size() <= 100
+        && data.email is string
+        && data.email.size() >= 3
+        && data.email.size() <= 200
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500))
+        && data.preferredLanguage is string
+        && data.preferredLanguage.size() >= 2
+        && data.preferredLanguage.size() <= 16
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidScan(data) {
+      return data.keys().hasAll(['ownerId', 'detectedText', 'contentType', 'confidence', 'pipeline', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'ownerId', 'detectedText', 'contentType', 'confidence', 'pipeline',
+          'mathEvaluated', 'translatedText', 'targetLanguage', 'notes', 'thumbnailDataUrl',
+          'createdAt', 'updatedAt'
+        ])
+        && data.ownerId is string
+        && data.ownerId.size() <= 128
+        && data.ownerId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.ownerId == request.auth.uid
+        && data.detectedText is string
+        && data.detectedText.size() >= 1
+        && data.detectedText.size() <= 2000
+        && data.contentType in ['digit', 'letter', 'number', 'word', 'math_expression', 'sentence', 'document']
+        && data.confidence is number
+        && data.confidence >= 0
+        && data.confidence <= 1
+        && data.pipeline in ['CUSTOM_TENSORFLOW_CNN', 'CLOUD_VISION_FALLBACK', 'GOOGLE_CLOUD_VISION_REST_API']
+        && (!('mathEvaluated' in data) || (data.mathEvaluated is string && data.mathEvaluated.size() <= 200))
+        && (!('translatedText' in data) || (data.translatedText is string && data.translatedText.size() <= 2000))
+        && (!('targetLanguage' in data) || (data.targetLanguage is string && data.targetLanguage.size() <= 16))
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 500))
+        && (!('thumbnailDataUrl' in data) || (data.thumbnailDataUrl is string && data.thumbnailDataUrl.size() <= 60000))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Private User Profile
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUser(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUser(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().email == existing().email
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'preferredLanguage', 'updatedAt']);
+      allow delete: if false;
+
+      // User's Saved Cloud Vision & CNN Scans
+      match /scans/{scanId} {
+        allow get: if isValidId(userId) && isValidId(scanId) && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow list: if isValidId(userId) && isOwner(userId)
+          && resource.data.ownerId == request.auth.uid;
+        allow create: if isValidId(userId) && isValidId(scanId) && isOwner(userId)
+          && isValidScan(incoming())
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && isValidId(scanId) && isOwner(userId)
+          && isValidScan(incoming())
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && incoming().ownerId == existing().ownerId
+          && incoming().detectedText == existing().detectedText
+          && incoming().contentType == existing().contentType
+          && incoming().confidence == existing().confidence
+          && incoming().pipeline == existing().pipeline
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['notes', 'translatedText', 'targetLanguage', 'updatedAt']);
+        allow delete: if isValidId(userId) && isValidId(scanId) && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId));
+      }
+    }
+  }
+}
